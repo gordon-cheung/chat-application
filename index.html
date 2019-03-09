@@ -1,0 +1,262 @@
+<!DOCTYPE HTML>
+<head>
+  <title>Socket.IO chat</title>
+  <meta charset="UTF-8">
+
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/css/bootstrap.min.css" integrity="sha384-GJzZqFGwb1QTTN6wy59ffF1BuGJpLSa9DkKMp0DgiMDm4iYMj70gZWKYbI706tWS" crossorigin="anonymous">
+  <style>
+    html, body {
+      height:100%;
+      overflow: hidden;
+    }
+    p {
+      display: inline
+    }
+    .chat-container {
+      max-height:100%;
+      height:100%;
+      padding: 0;
+    }
+    #nickname {
+      color:white;
+      font-weight: bold;
+      min-height:40px;
+      line-height:40px;
+      padding-left:10px;
+      background:#36393E;
+      border-bottom-style: solid;
+      border-color: black;
+      border-width: 1px;
+    }
+    .row {
+      max-height:100%;
+      height:100%;
+    }
+    .message-section {
+      padding: 0;
+      height:100%;
+      max-height:100%;
+      color: white;
+      background:#36393E;
+      opacity: 0.95;
+    }
+    /* Scrollbar styles */
+    ::-webkit-scrollbar {
+      width: 12px;
+      height: 12px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #36393E;
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb {
+      border-radius: 10px;
+      background: #ccc;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #999;
+    }
+    .message-history-section {
+      padding-right:0px;
+      padding-left:5px;
+      max-height:calc(100% - 110px);
+      overflow-y: auto;
+    }
+    #messages {
+      list-style-type: none;
+      padding-inline-start: 10px;
+      margin-bottom:0px;
+    }
+    #messages li {
+      padding:3px;
+    }
+    .send-message-section {
+      border-top-style: solid;
+      border-color: black;
+      border-width: 1px;
+      position:absolute;
+      height:100px;
+      bottom: 0;
+    }
+    #message-input {
+      background: #424549;
+      margin-left:15px;
+      margin-top:8px;
+      margin-bottom:8px;
+      color: white;
+    }
+    .input-group-append {
+      background: #424549;
+      margin-right: 15px;
+      margin-top: 8px;
+      margin-bottom:8px;
+    }
+
+    .input-group-append .btn {
+      border-color: #ced4da;
+      border-style: solid;
+      color: white;
+    }
+    .user-section {
+      color: white;
+      background:#2E3136;
+    }
+    #users {
+      list-style-type: none;
+      padding-inline-start: 5px;
+      margin-bottom:0px;
+    }
+    #users li {
+      padding:3px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container-fluid chat-container">
+    <div id="nickname"></div>
+    <div class="row">
+      <div class="col-9 message-section">
+        <div class="col-12 message-history-section">
+          <ul id="messages"></ul>
+        </div>
+        <div class="col-12 send-message-section">
+          <form action="">
+            <div class="input-group">
+                <input id="message-input" autocomplete="off" type="text" class="form-control">
+                <div class="input-group-append">
+                  <button class="btn btn-outline-secondary" type="button">Send</button>
+                </div>
+            </div>
+          </form>
+        </div>
+      </div>
+      <div class="col-3 user-section">
+        <ul class="col-12" id="users"></ul>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.6/umd/popper.min.js" integrity="sha384-wHAiFfRlMFy6i5SRaxvfOCifBUQy1xHdJ/yoi7FRNXMRBu5WHdZYu1hA6ZOblgut" crossorigin="anonymous"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/js/bootstrap.min.js" integrity="sha384-B0UglyR+jN6CkvvICOB2joaf5I4l3gm9GU6Hc1og6Ls7i6U/mkkaduKaBhlAXv9k" crossorigin="anonymous"></script>
+  <script>
+    $(function () {
+      var socket = io();
+
+      $("form").submit(function(e) {
+        e.preventDefault(); // prevents page reloading
+        var message = $('#message-input').val()
+
+        if (message.startsWith("/")) {
+          socket.emit('command message', message)
+        } else {
+          socket.emit('chat message', message);
+        }
+        $('#message-input').val('');
+
+        return false;
+      });
+
+      $("form button").click(function(e) {
+        $("form").submit();
+      })
+
+      socket.on('connection', function(initObj) {
+        var nickname = initObj.userInfo.username
+        var color = initObj.userInfo.color
+        var chatHistory = initObj.history
+        var onlineUsers = initObj.onlineUsers
+        $('#nickname').html(nickname).css('color', color)
+        onlineUsers.forEach(function(user) {
+            $('#users').append($('<li>').text(user.username).css('color', user.color));
+        });
+        chatHistory.forEach(function(msg) {
+          var msgDisplay = getMessageDisplay(msg)
+          appendMessage(msgDisplay, msg.isSystemMessage)
+        });
+      });
+
+      socket.on('connected user', function(msg) {
+        var msgDisplay = getMessageDisplay(msg)
+        $('#users').append($('<li>').text(msg.user).css('color', msg.color));
+        appendMessage(msgDisplay, true)
+      });
+
+      socket.on('disconnected user', function(msg) {
+        var msgDisplay = getMessageDisplay(msg)
+        $("ul#users li:contains(" + msg.user + ")").remove();
+        appendMessage(msgDisplay, true)
+      });
+
+      socket.on('chat message', function(msg) {
+        var msgDisplay = getMessageDisplay(msg);
+        appendMessage(msgDisplay)
+      });
+
+      socket.on('command nickname', function(nicknameObj) {
+        if (nicknameObj.valid) {
+          $('#nickname').html(nicknameObj.newNickname)
+        } else {
+          var msgDisplay = getMessageDisplay(nicknameObj.message)
+          appendMessage(msgDisplay, true)
+        }
+      });
+
+      socket.on('nickname changed', function(nicknameObj) {
+        if (nicknameObj.valid) {
+          var msgDisplay = getMessageDisplay(nicknameObj.message)
+          appendMessage(msgDisplay, true)
+          $("ul#users li:contains(" + nicknameObj.message.user + ")").text(nicknameObj.newNickname);
+        }
+      });
+
+      socket.on('command nickcolor', function(nickColorObj) {
+        if (nickColorObj.valid) {
+          $('#nickname').css('color', nickColorObj.color)
+        } else {
+          var msgDisplay = getMessageDisplay(nickColorObj.message)
+          appendMessage(msgDisplay, true)
+        }
+      });
+
+      socket.on('nickcolor changed', function(nickColorObj) {
+        if (nickColorObj.valid) {
+          $("ul#users li:contains(" + nickColorObj.message.user + ")").css('color', nickColorObj.color);
+        }
+      });
+    });
+
+    function appendMessage(msg, isSystemMessage = false) {
+      if (isSystemMessage) {
+        $('#messages').append($('<li>').html(msg).css('background', "#7686bc"));
+      } else {
+        $('#messages').append($('<li>').html(msg));
+      }
+      scrollToBottom();
+    }
+
+    function scrollToBottom() {
+      $(".message-history-section").scrollTop($(".message-history-section")[0].scrollHeight);
+    }
+
+    function getMessageDisplay(msg) {
+      var msgDisplay = getDate(msg.timestamp) + " <p style=\"color: " + msg.color + "\">" + msg.user + "</p>: " + msg.message
+      if (msg.user === $('#nickname').text()) {
+        msgDisplay = "<b>" + msgDisplay + "</b>"
+      }
+      return msgDisplay;
+    }
+
+    function getDate(timestamp) {
+      var date = new Date(timestamp);
+      var hours = date.getHours();
+      var minutes = "0" + date.getMinutes();
+
+      var formattedTime = hours + ':' + minutes.substr(-2)
+      return formattedTime;
+    }
+  </script>
+</body>
+</html>
