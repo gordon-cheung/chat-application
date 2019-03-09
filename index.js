@@ -14,6 +14,10 @@ app.get('/', function(req, res){
 io.on('connection', function(socket) {
   onConnection(socket)
 
+  socket.on('cookie', function(cookie) {
+    initUser(cookie, socket);
+  });
+
   socket.on('disconnect', function() {
     onDisconnection(socket.id)
   });
@@ -39,10 +43,15 @@ http.listen(3000, function(){
 });
 
 function onConnection(socket) {
-  var nickname = getNewNickname()
-  var hexColor = getHexColor()
+  console.log("A user is connected");
+  socket.emit('connection');
+}
+
+function initUser(cookie, socket) {
+  var nickname = (typeof cookie.username !== "undefined" && isUserUnique(cookie.username)) ? cookie.username : getNewNickname()
+  var hexColor = (typeof cookie.username !== "undefined" && isUserUnique(cookie.username)) ? cookie.color : getHexColor()
   var userInfo = {username: nickname, color: hexColor }
-  socket.emit('connection', { userInfo: userInfo, history: msgHistory, onlineUsers: Object.values(users)})
+  socket.emit('init', { userInfo: userInfo, history: msgHistory, onlineUsers: Object.values(users)})
   users[socket.id] = userInfo
   var message = {
     timestamp: getTimestamp(),
@@ -52,6 +61,7 @@ function onConnection(socket) {
     isSystemMessage: true
   }
   msgHistory.push(message)
+  console.log(nickname + " is connected");
   io.emit('connected user', message)
 }
 

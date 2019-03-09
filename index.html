@@ -163,7 +163,14 @@
         $("form").submit();
       })
 
-      socket.on('connection', function(initObj) {
+      socket.on('connection', function() {
+        var cookieObj = {}
+        cookieObj.username = getCookie("username")
+        cookieObj.color = getCookie("color")
+        socket.emit("cookie", cookieObj)
+      });
+
+      socket.on('init', function(initObj) {
         var nickname = initObj.userInfo.username
         var color = initObj.userInfo.color
         var chatHistory = initObj.history
@@ -176,6 +183,9 @@
           var msgDisplay = getMessageDisplay(msg)
           appendMessage(msgDisplay, msg.isSystemMessage)
         });
+
+        setCookie("username", nickname)
+        setCookie("color", color)
       });
 
       socket.on('connected user', function(msg) {
@@ -198,6 +208,7 @@
       socket.on('command nickname', function(nicknameObj) {
         if (nicknameObj.valid) {
           $('#nickname').html(nicknameObj.newNickname)
+          setCookie("username", nicknameObj.newNickname)
         } else {
           var msgDisplay = getMessageDisplay(nicknameObj.message)
           appendMessage(msgDisplay, true)
@@ -215,6 +226,7 @@
       socket.on('command nickcolor', function(nickColorObj) {
         if (nickColorObj.valid) {
           $('#nickname').css('color', nickColorObj.color)
+          setCookie("color", nickColorObj.color)
         } else {
           var msgDisplay = getMessageDisplay(nickColorObj.message)
           appendMessage(msgDisplay, true)
@@ -256,6 +268,18 @@
 
       var formattedTime = hours + ':' + minutes.substr(-2)
       return formattedTime;
+    }
+
+    function setCookie(key, value) {
+      document.cookie = key + "=" + value
+    }
+
+    function getCookie(key) {
+      var value = "; " + document.cookie;
+      var parts = value.split("; " + key + "=");
+      if (parts.length == 2) {
+        return parts.pop().split(";").shift();
+      }
     }
   </script>
 </body>
